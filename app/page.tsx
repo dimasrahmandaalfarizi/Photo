@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { X } from 'lucide-react'
 import { motion, AnimatePresence, useInView } from 'framer-motion'
-import { loadAssetPhotos, type AssetPhoto } from '@/utils/assetPhotos'
+import { loadAssetPhotos } from '@/utils/assetPhotos'
 
 interface Photo {
   id: string
@@ -107,24 +107,23 @@ export default function Home() {
         // Load photos from API (scans public/photos folder)
         // Add cache busting to ensure fresh data
         const response = await fetch('/api/photos?' + new Date().getTime())
-        const data = await response.json()
+        const responseData = await response.json() as { photos?: Photo[], count?: number, total?: number }
         
-        if (data.photos && Array.isArray(data.photos)) {
-          console.log(`✅ API Response: ${data.photos.length} photos`)
-          console.log(`📊 Count from API: ${data.count || 'N/A'}, Total: ${data.total || 'N/A'}`)
+        if (responseData.photos && Array.isArray(responseData.photos)) {
+          console.log(`✅ API Response: ${responseData.photos.length} photos`)
+          console.log(`📊 Count from API: ${responseData.count || 'N/A'}, Total: ${responseData.total || 'N/A'}`)
           
           // Use ALL photos from API - no filtering unless truly broken
-          const allPhotos = data.photos.filter(p => {
-            if (!p) {
-              console.warn('Found null/undefined photo')
-              return false
+          const allPhotos: Photo[] = []
+          const photosArray: Photo[] = responseData.photos as Photo[]
+          for (let i = 0; i < photosArray.length; i++) {
+            const p: Photo | undefined = photosArray[i]
+            if (p && p.url && p.name) {
+              allPhotos.push(p)
+            } else {
+              console.warn('Found invalid photo:', p)
             }
-            if (!p.url) {
-              console.warn('Found photo without URL:', p)
-              return false
-            }
-            return true
-          })
+          }
           
           console.log(`📸 After filtering invalid: ${allPhotos.length} photos`)
           console.log(`📋 First photo:`, allPhotos[0]?.name)
@@ -132,7 +131,11 @@ export default function Home() {
           
           if (allPhotos.length !== 52) {
             console.error(`❌ ERROR: Expected 52 photos but got ${allPhotos.length}`)
-            console.log(`📋 All photo names:`, allPhotos.map(p => p.name))
+            const photoNames: string[] = []
+            for (let i = 0; i < allPhotos.length; i++) {
+              photoNames.push(allPhotos[i].name)
+            }
+            console.log(`📋 All photo names:`, photoNames)
           }
           
           // Force React to re-render by using new array reference
@@ -145,26 +148,42 @@ export default function Home() {
         } else {
           console.warn('No photos found in API response')
           // Fallback: try loading from localStorage or asset photos
-          const savedPhotos = localStorage.getItem('photoGallery')
-          if (savedPhotos) {
-            const parsed = JSON.parse(savedPhotos)
-            setPhotos(Array.isArray(parsed) ? parsed : [])
-          } else {
-            // Last resort: load from assetPhotos
-            const assetPhotos = loadAssetPhotos()
-            setPhotos(assetPhotos)
+          if (typeof window !== 'undefined') {
+            const savedPhotos = localStorage.getItem('photoGallery')
+            if (savedPhotos) {
+              try {
+                const parsed = JSON.parse(savedPhotos)
+                setPhotos(Array.isArray(parsed) ? parsed : [])
+              } catch (e) {
+                console.error('Error parsing saved photos:', e)
+                const assetPhotos = loadAssetPhotos()
+                setPhotos(assetPhotos)
+              }
+            } else {
+              // Last resort: load from assetPhotos
+              const assetPhotos = loadAssetPhotos()
+              setPhotos(assetPhotos)
+            }
           }
         }
       } catch (error) {
         console.error('❌ Error loading photos:', error)
         // Fallback to localStorage or asset photos
-        const savedPhotos = localStorage.getItem('photoGallery')
-        if (savedPhotos) {
-          const parsed = JSON.parse(savedPhotos)
-          setPhotos(Array.isArray(parsed) ? parsed : [])
-        } else {
-          const assetPhotos = loadAssetPhotos()
-          setPhotos(assetPhotos)
+        if (typeof window !== 'undefined') {
+          const savedPhotos = localStorage.getItem('photoGallery')
+          if (savedPhotos) {
+            try {
+              const parsed = JSON.parse(savedPhotos)
+              setPhotos(Array.isArray(parsed) ? parsed : [])
+            } catch (e) {
+              console.error('Error parsing saved photos:', e)
+              const assetPhotos = loadAssetPhotos()
+              setPhotos(assetPhotos)
+            }
+          } else {
+            const assetPhotos = loadAssetPhotos()
+            setPhotos(assetPhotos)
+          }
         }
       } finally {
         setIsInitialized(true)
@@ -178,12 +197,25 @@ export default function Home() {
   useEffect(() => {
     if (photos.length > 0) {
       console.log(`🖼️ Photos state updated: ${photos.length} photos`)
-      console.log(`📋 Photo IDs (first 10):`, photos.slice(0, 10).map(p => p.id))
-      console.log(`📋 Photo IDs (last 10):`, photos.slice(-10).map(p => p.id))
+      const first10Ids: string[] = []
+      for (let i = 0; i < Math.min(10, photos.length); i++) {
+        first10Ids.push(photos[i].id)
+      }
+      const last10Ids: string[] = []
+      const startIdx = Math.max(0, photos.length - 10)
+      for (let i = startIdx; i < photos.length; i++) {
+        last10Ids.push(photos[i].id)
+      }
+      console.log(`📋 Photo IDs (first 10):`, first10Ids)
+      console.log(`📋 Photo IDs (last 10):`, last10Ids)
       
       if (photos.length !== 52) {
         console.error(`❌ PROBLEM: Only ${photos.length} photos in state, expected 52!`)
-        console.log(`📋 All photo names:`, photos.map(p => p.name))
+        const allNames: string[] = []
+        for (const photo of photos) {
+          allNames.push(photo.name)
+        }
+        console.log(`📋 All photo names:`, allNames)
       } else {
         console.log(`✅ SUCCESS: All 52 photos in state!`)
       }
@@ -240,7 +272,7 @@ export default function Home() {
             >
               {photos && photos.length > 0 ? (
                 <>
-                  {photos.map((photo, index) => {
+                  {photos.map((photo: Photo, index: number) => {
                     if (!photo || !photo.url) {
                       console.warn(`⚠️ Invalid photo at index ${index}:`, photo)
                       return null
@@ -258,12 +290,7 @@ export default function Home() {
                       />
                     )
                   })}
-                  {/* Log rendered count */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <div style={{ display: 'none' }}>
-                      {console.log(`🖼️ Rendered ${photos.length} PhotoCard components in DOM`)}
-                    </div>
-                  )}
+                  {/* Log rendered count - removed to fix TypeScript error */}
                 </>
               ) : (
                 <div className="col-span-full text-center p-4">
@@ -279,10 +306,6 @@ export default function Home() {
                 </div>
               )}
             </motion.div>
-            {/* Photo count indicator - always visible */}
-            <div className="fixed bottom-4 left-4 bg-[#F3D0D7]/90 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm z-40 shadow-lg font-semibold">
-              {photos.length} / 52 foto
-            </div>
           </>
         )}
 
