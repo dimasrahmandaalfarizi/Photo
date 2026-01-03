@@ -46,7 +46,22 @@ const PhotoCard = ({ photo, index, size, onSelect }: {
       onClick={onSelect}
     >
       <motion.div 
-        className={`relative ${size.height} overflow-hidden rounded-xl bg-white shadow-md hover:shadow-xl transition-all duration-500`}
+        className="relative overflow-hidden rounded-xl bg-white shadow-md hover:shadow-xl transition-all duration-500"
+        style={{ 
+          height: size.height.replace('h-', '') === '56' ? '224px' :
+                  size.height.replace('h-', '') === '60' ? '240px' :
+                  size.height.replace('h-', '') === '64' ? '256px' :
+                  size.height.replace('h-', '') === '68' ? '272px' :
+                  size.height.replace('h-', '') === '72' ? '288px' :
+                  size.height.replace('h-', '') === '76' ? '304px' :
+                  size.height.replace('h-', '') === '80' ? '320px' :
+                  size.height.replace('h-', '') === '84' ? '336px' :
+                  size.height.replace('h-', '') === '88' ? '352px' :
+                  size.height.replace('h-', '') === '92' ? '368px' :
+                  size.height.replace('h-', '') === '96' ? '384px' :
+                  size.height.replace('h-', '') === '100' ? '400px' : '256px',
+          width: '100%'
+        }}
         whileHover={{ 
           boxShadow: "0 25px 50px -12px rgba(243, 208, 215, 0.5)",
         }}
